@@ -162,6 +162,10 @@ getwq <- function(station_id = NA, date_min = NA, date_max = NA,
 #'@param date_max character date must be in YYYY-MM-DD format
 #'@param raw logical default is FALSE, set to TRUE to return data in "long"
 #' format with all comments, qa information, and database codes included.
+#'@param datum character string specifying the datum to use for the data.
+#' Choices are "NGVD29" or "NAVD88". Use empty string to force the function to
+#' behave as it did before the datum argument was added. Defaults to empty string.
+#' Should only be needed when retrieving water level data.
 #'@param ... Options passed on to \code{\link[dbhydroR]{get_dbkey}}
 #'@aliases gethydro
 #'@export
@@ -206,8 +210,11 @@ getwq <- function(station_id = NA, date_min = NA, date_max = NA,
 #'param = "WNDS", freq = "DA", date_min = "2013-01-01",
 #'date_max = "2013-02-02")
 #'}
+#'
+#'#Using the datum argument
+#'get_hydro(dbkey = "15611", date_min = "1950-01-01", date_max = "2024-05-28", raw = TRUE, datum = "NGVD29")
 
-get_hydro <- function(dbkey = NA, date_min = NA, date_max = NA, raw = FALSE,
+get_hydro <- function(dbkey = NA, date_min = NA, date_max = NA, raw = FALSE, datum = "",
               ...){
 
   period <- "uspec"
@@ -239,9 +246,44 @@ get_hydro <- function(dbkey = NA, date_min = NA, date_max = NA, raw = FALSE,
     date_max <- strftime(date_max, format = "%Y%m%d")
   }
 
-  qy <- list(v_period = period, v_start_date = date_min, v_end_date = date_max,
-        v_report_type = "format6", v_target_code = v_target_code,
-        v_run_mode = "onLine", v_js_flag = "Y", v_dbkey = dbkey)
+  # Check if datum was given
+  datum_given <- FALSE
+
+  if (nchar(datum) > 0)
+  {
+    datum_given <- TRUE
+    datum <- toupper(datum)
+
+    # Convert datum to the number expected by dbhydro
+    if (datum == "NGVD29")
+    {
+      datum <- "1"
+    }
+    else
+    if (datum == "NAVD88")
+    {
+      datum <- "2"
+    }
+    else
+    # Invalid datum given
+    {
+      datum_given <- FALSE
+      warning("Invalid datum given to get_hydro. Datum must be either 'NGVD29' or 'NAVD88'. Got '", datum, "'.")
+    }
+  }
+
+  if (datum_given)
+  {
+    qy <- list(v_period = period, v_start_date = date_min, v_end_date = date_max,
+          v_report_type = "format6", v_target_code = v_target_code,
+          v_run_mode = "onLine", v_js_flag = "Y", v_dbkey = dbkey, v_datum = datum)
+  }
+  else
+  {
+    qy <- list(v_period = period, v_start_date = date_min, v_end_date = date_max,
+          v_report_type = "format6", v_target_code = v_target_code,
+          v_run_mode = "onLine", v_js_flag = "Y", v_dbkey = dbkey)
+  }
 
   res <- dbh_GET(servfull, query = qy)
   try({res <- parse_hydro_response(res, raw)}, silent = TRUE)
